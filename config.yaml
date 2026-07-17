@@ -10,9 +10,12 @@
 # Add a future tier (e.g. `smart` / `fast`): add one model_list entry + one
 # fallbacks line. Agent code never changes.
 #
-# Gemini Flash free-tier quota is shared across every entry that uses the same
-# key. LiteLLM counts rpm/tpm PER ENTRY, so the ~10 RPM / ~250K TPM budget is
-# split explicitly below so enable_pre_call_checks stays truthful:
+# Gemini free-tier quota is shared across every entry using the same key, and
+# LiteLLM counts rpm/tpm PER ENTRY. Google no longer publishes free-tier limits
+# for gemini-3.5-flash — read your real RPM/RPD/TPM from the AI Studio dashboard
+# (https://aistudio.google.com/rate-limit). The split below is a CONSERVATIVE
+# placeholder (~10 RPM / ~250K TPM assumed) so enable_pre_call_checks stays
+# truthful; re-balance once you see the dashboard numbers:
 #   agent-default 5rpm/120K  |  vision 2rpm/30K  |  long-context 2rpm/80K  |  gemini-flash 1rpm/20K
 #
 # Every `# VERIFY-AT-BUILD` model id must be re-checked against the provider's
@@ -23,7 +26,7 @@ model_list:
   # ─── Layer 1: semantic aliases (the stable contract your agents depend on) ──
   - model_name: agent-default
     litellm_params:
-      model: gemini/gemini-2.5-flash          # VERIFY-AT-BUILD (also evaluate 3.x flash previews' RPD)
+      model: gemini/gemini-3.5-flash          # free since ~May 2026; free RPM/TPM are AI Studio dashboard-only, not published by Google
       api_key: os.environ/GEMINI_API_KEY
       rpm: 5
       tpm: 120000
@@ -31,7 +34,7 @@ model_list:
 
   - model_name: vision
     litellm_params:
-      model: gemini/gemini-2.5-flash          # VERIFY-AT-BUILD
+      model: gemini/gemini-3.5-flash          # dashboard-only free limits
       api_key: os.environ/GEMINI_API_KEY
       rpm: 2
       tpm: 30000
@@ -39,7 +42,7 @@ model_list:
 
   - model_name: long-context
     litellm_params:
-      model: gemini/gemini-2.5-flash          # VERIFY-AT-BUILD
+      model: gemini/gemini-3.5-flash          # dashboard-only free limits
       api_key: os.environ/GEMINI_API_KEY
       rpm: 2
       tpm: 80000
@@ -49,7 +52,7 @@ model_list:
 
   # ─── Layer 2: provider-pinned deployments (debug/pin + fallback targets) ────
   - model_name: gemini-flash
-    litellm_params: { model: gemini/gemini-2.5-flash, api_key: os.environ/GEMINI_API_KEY, rpm: 1, tpm: 20000 }        # VERIFY-AT-BUILD
+    litellm_params: { model: gemini/gemini-3.5-flash, api_key: os.environ/GEMINI_API_KEY, rpm: 1, tpm: 20000 }        # gemini-3.5-flash; dashboard-only free limits
     model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 1048576 }
 
   - model_name: gemini-flash-lite
