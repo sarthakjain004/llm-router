@@ -51,7 +51,34 @@ synonyms in the last column.
    bind; no TLS layer in this stack. (ADR-0007)
 7. **Everything runs on ARM64** (Apple Silicon + Oracle aarch64) natively.
 
-## Where things live
+## Where the code actually runs
+
+This repo is **declarative configuration only** — there is no routing, retry, or
+proxy code here. The *logic* that reads `config.yaml` and does the work lives in
+the upstream **`litellm` package baked into the container image**
+(`ghcr.io/berriai/litellm:v1.92.0`), not in these files. `config.yaml`'s
+`router_settings` simply parameterizes LiteLLM's built-in `Router`. (ADR-0001)
+
+Chain: `docker/entrypoint.sh` → `litellm --config …` (`litellm/proxy/proxy_cli.py`)
+→ the FastAPI app in `litellm/proxy/proxy_server.py` → a `litellm.Router` built
+from our config. The mechanisms (paths confirmed at tag `v1.92.0`):
+
+| Behavior | Upstream file (inside the image) | Our config knob |
+| -------- | -------------------------------- | --------------- |
+| retries within a model group | `litellm/router.py` → `async_function_with_retries` | `num_retries`, `retry_after` |
+| failover between aliases | `litellm/router.py` → `async_function_with_fallbacks` | `fallbacks` |
+| per-error-type retry counts | `litellm/router_utils/get_retry_from_policy.py` | `retry_policy` |
+| cooldown on 429/5xx | `litellm/router_utils/cooldown_handlers.py`, `cooldown_cache.py` | `cooldown_time`, `allowed_fails`, `allowed_fails_policy` |
+| `x-litellm-*` response headers | `litellm/router_utils/add_retry_fallback_headers.py` | — |
+| the `/v1/...` HTTP surface | `litellm/proxy/proxy_server.py` | `model_list`, `general_settings` |
+
+To read it: `https://github.com/BerriAI/litellm/blob/v1.92.0/litellm/router.py`,
+or in the running container —
+`docker exec llm-router python3 -c "import litellm,os;print(os.path.dirname(litellm.__file__))"`.
+Changing *how* failover behaves (not just order/limits) means configuring
+`router_settings` or forking the image; this repo's job is to declare intent.
+
+## Where things live (in this repo)
 
 - Interface contract & runbook → [`README.md`](README.md)
 - Decisions & their rationale → [`docs/adr/`](docs/adr/)

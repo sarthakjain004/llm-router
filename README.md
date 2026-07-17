@@ -281,5 +281,12 @@ docs/adr/                architecture decision records
 .scratch/                local issue tracker (PRD + follow-up issues)
 ```
 
+> **Looking for the retry / failover / routing code?** It isn't in this repo.
+> This repo is declarative config only — the routing, retry, cooldown, and
+> failover logic lives in the upstream `litellm` package inside the container
+> image (`litellm/router.py`, `litellm/router_utils/`), driven by
+> `router_settings` in `config.yaml`. See **[CONTEXT.md → "Where the code
+> actually runs"](CONTEXT.md#where-the-code-actually-runs)**.
+
 Domain vocabulary is in [`CONTEXT.md`](CONTEXT.md); the reasoning behind each
 design choice is in [`docs/adr/`](docs/adr/).
