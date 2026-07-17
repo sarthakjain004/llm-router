@@ -1,0 +1,50 @@
+# llm-router — one OpenAI-compatible endpoint with free-tier failover.
+#   docker compose up -d --build      # start
+#   docker compose logs -f litellm    # watch
+services:
+  litellm:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        LITELLM_TAG: ${LITELLM_TAG:-v1.92.0}
+    image: llm-router-litellm:${LITELLM_TAG:-v1.92.0}
+    container_name: llm-router
+    restart: unless-stopped
+    env_file:
+      - .env
+      # NOTE: DATABASE_URL only reaches the container if it is uncommented in
+      # .env. Never add it to an `environment:` block here — that would make it
+      # impossible to disable without editing this file.
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      # Loopback on the Mac; the Tailscale IP on the Oracle VM. NEVER 0.0.0.0 —
+      # docker-published ports bypass ufw, so this bind address is the real
+      # firewall. See README "Oracle Cloud deploy".
+      - "${BIND_ADDR:-127.0.0.1}:4000:4000"
+    healthcheck:
+      # /health/liveliness is unauthenticated and cheap (does not call providers).
+      test: ["CMD", "python3", "-c",
+             "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=5).status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # ─── Ollama local fallback (SKIPPED for now) ───────────────────────────────
+  # Uncomment to add a CPU-only last-resort tier. On the 12 GB Oracle box use a
+  # small model only (qwen3:4b or llama3.2:3b). After first start:
+  #   docker exec ollama ollama pull qwen3:4b
+  # then set OLLAMA_API_BASE=http://ollama:11434 in .env and uncomment the
+  # ollama-local entry in config.yaml (+ append it to the fallback chain).
+  # ollama:
+  #   image: ollama/ollama:latest        # multi-arch incl. arm64
+  #   container_name: ollama
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ollama-models:/root/.ollama
+  #   # No ports published — only the litellm container needs to reach it.
+
+# volumes:
+#   ollama-models:

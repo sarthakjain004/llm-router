@@ -1,0 +1,164 @@
+# =============================================================================
+# llm-router — LiteLLM proxy config
+#
+# Two layers:
+#   Layer 1 (semantic)  agent-default / vision / long-context   <- agents call ONLY these
+#   Layer 2 (pinned)    gemini-* / groq-* / cerebras-* / openrouter-free / nim-*
+#                       (direct provider handles; also the fallback targets)
+#
+# Fallback chains live in ONE place: router_settings.fallbacks (reorder there).
+# Add a future tier (e.g. `smart` / `fast`): add one model_list entry + one
+# fallbacks line. Agent code never changes.
+#
+# Gemini Flash free-tier quota is shared across every entry that uses the same
+# key. LiteLLM counts rpm/tpm PER ENTRY, so the ~10 RPM / ~250K TPM budget is
+# split explicitly below so enable_pre_call_checks stays truthful:
+#   agent-default 5rpm/120K  |  vision 2rpm/30K  |  long-context 2rpm/80K  |  gemini-flash 1rpm/20K
+#
+# Every `# VERIFY-AT-BUILD` model id must be re-checked against the provider's
+# /models endpoint before first deploy — run: python3 scripts/refresh_models.py --check
+# =============================================================================
+
+model_list:
+  # ─── Layer 1: semantic aliases (the stable contract your agents depend on) ──
+  - model_name: agent-default
+    litellm_params:
+      model: gemini/gemini-2.5-flash          # VERIFY-AT-BUILD (also evaluate 3.x flash previews' RPD)
+      api_key: os.environ/GEMINI_API_KEY
+      rpm: 5
+      tpm: 120000
+    model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
+
+  - model_name: vision
+    litellm_params:
+      model: gemini/gemini-2.5-flash          # VERIFY-AT-BUILD
+      api_key: os.environ/GEMINI_API_KEY
+      rpm: 2
+      tpm: 30000
+    model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 1048576 }
+
+  - model_name: long-context
+    litellm_params:
+      model: gemini/gemini-2.5-flash          # VERIFY-AT-BUILD
+      api_key: os.environ/GEMINI_API_KEY
+      rpm: 2
+      tpm: 80000
+    # NOTE: free-tier TPM (~250K) practically caps a single request near ~200K
+    # tokens despite Gemini's 1M window. Documented in README.
+    model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
+
+  # ─── Layer 2: provider-pinned deployments (debug/pin + fallback targets) ────
+  - model_name: gemini-flash
+    litellm_params: { model: gemini/gemini-2.5-flash, api_key: os.environ/GEMINI_API_KEY, rpm: 1, tpm: 20000 }        # VERIFY-AT-BUILD
+    model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 1048576 }
+
+  - model_name: gemini-flash-lite
+    litellm_params: { model: gemini/gemini-2.5-flash-lite, api_key: os.environ/GEMINI_API_KEY, rpm: 15, tpm: 250000 } # VERIFY-AT-BUILD (lite TPM unconfirmed)
+    model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
+
+  - model_name: groq-llama70b
+    litellm_params: { model: groq/llama-3.3-70b-versatile, api_key: os.environ/GROQ_API_KEY, rpm: 30, tpm: 12000 }    # VERIFY-AT-BUILD; real ceiling is 100K TPD (no LiteLLM knob — cooldowns absorb it)
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
+  - model_name: groq-fast
+    litellm_params: { model: groq/llama-3.1-8b-instant, api_key: os.environ/GROQ_API_KEY, rpm: 30, tpm: 6000 }        # VERIFY-AT-BUILD (14.4K RPD / 500K TPD)
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
+  - model_name: groq-scout            # multimodal — fallback for `vision`
+    litellm_params: { model: groq/meta-llama/llama-4-scout-17b-16e-instruct, api_key: os.environ/GROQ_API_KEY, rpm: 30, tpm: 30000 }  # VERIFY-AT-BUILD
+    model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 131072 }
+
+  - model_name: cerebras-gptoss
+    litellm_params: { model: cerebras/gpt-oss-120b, api_key: os.environ/CEREBRAS_API_KEY, rpm: 5, tpm: 30000 }        # VERIFY-AT-BUILD (alts: zai-glm-4.7, gemma-4-31b); hard 5 RPM — pre_call_checks matters here
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
+  # --- BEGIN GENERATED: openrouter-free (managed by scripts/refresh_models.py — DO NOT EDIT) ---
+  # Populated by:  python3 scripts/refresh_models.py --write
+  # All entries share model_name `openrouter-free` => one load-balanced group.
+  # Account cap is 20 RPM / 50 requests-per-day, split as rpm across <=4 entries.
+  - model_name: openrouter-free
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      rpm: 5
+    model_info: { supports_function_calling: true, max_input_tokens: 1000000 }
+  - model_name: openrouter-free
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      rpm: 5
+    model_info: { supports_function_calling: true, max_input_tokens: 1000000 }
+  - model_name: openrouter-free
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-nano-30b-a3b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      rpm: 5
+    model_info: { supports_function_calling: true, max_input_tokens: 256000 }
+  - model_name: openrouter-free
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      rpm: 5
+    model_info: { supports_function_calling: true, max_input_tokens: 256000 }
+  # --- END GENERATED: openrouter-free ---
+
+  - model_name: nim-llama             # LAST-RESORT RESERVE: finite ~1000-credit pool, kept last on purpose
+    litellm_params: { model: nvidia_nim/meta/llama-3.3-70b-instruct, api_key: os.environ/NVIDIA_NIM_API_KEY, rpm: 30 }             # VERIFY-AT-BUILD
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
+  - model_name: nim-vision
+    litellm_params: { model: nvidia_nim/meta/llama-4-scout-17b-16e-instruct, api_key: os.environ/NVIDIA_NIM_API_KEY, rpm: 10 }     # VERIFY-AT-BUILD
+    model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 131072 }
+
+  # ─── Ollama local fallback (SKIPPED for now) ────────────────────────────────
+  # To enable: uncomment the `ollama` service in docker-compose.yml, run
+  #   docker exec ollama ollama pull qwen3:4b
+  # set OLLAMA_API_BASE in .env, then uncomment this entry AND append
+  # `ollama-local` to the end of the agent-default fallback chain below.
+  # - model_name: ollama-local
+  #   litellm_params:
+  #     model: ollama_chat/qwen3:4b          # ollama_chat/ (not ollama/) for chat + tool calling
+  #     api_base: os.environ/OLLAMA_API_BASE
+  #   model_info: { supports_function_calling: true, max_input_tokens: 32768 }
+
+router_settings:
+  routing_strategy: simple-shuffle             # default; no Redis needed on a single host
+  enable_pre_call_checks: true                 # skip any deployment already over its rpm/tpm annotation
+  num_retries: 2
+  retry_after: 5
+  allowed_fails: 2
+  cooldown_time: 60          # matches per-minute rate windows; raise to 300 if logs show daily-cap (RPD/TPD) hammering
+  timeout: 120
+
+  # >>> The ONE place to reorder providers. To swap OpenRouter/NIM priority,
+  # >>> swap the two names in the agent-default list.
+  fallbacks:
+    - agent-default: [gemini-flash-lite, groq-llama70b, cerebras-gptoss, openrouter-free, nim-llama]
+    - vision:        [groq-scout, nim-vision]
+    - long-context:  [gemini-flash-lite, groq-scout, nim-llama]   # fallbacks cap at ~131K ctx — documented degradation
+  # Deliberately NO default_fallbacks: pinned aliases must fail loudly, not
+  # silently switch providers (loud failure is the whole point of pinning).
+
+  context_window_fallbacks:
+    - groq-llama70b:   [long-context]
+    - groq-fast:       [long-context]
+    - cerebras-gptoss: [long-context]
+
+  retry_policy:
+    RateLimitErrorRetries: 0        # a free-tier 429 won't clear in seconds — go straight to the next provider
+    TimeoutErrorRetries: 1
+    InternalServerErrorRetries: 1
+    ContentPolicyViolationErrorRetries: 0
+  allowed_fails_policy:
+    RateLimitErrorAllowedFails: 1   # one 429 -> cooldown; capacity comes from the next provider, not from waiting
+
+litellm_settings:
+  drop_params: true                 # heterogeneous free providers reject unknown params otherwise
+  request_timeout: 120              # the 6000s default would pin a worker on a hung stream
+  json_logs: true
+  # __OTEL__ callbacks: ["otel"]    # uncommented at boot by docker/entrypoint.sh when OTEL_ENABLED=true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # DATABASE_URL (Neon) is read from the environment automatically when set.
+  # Do NOT add database_url/store_model_in_db keys here — keep DB config env-only.

@@ -1,0 +1,19 @@
+# Secrets — NEVER commit real keys. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Logs / scratch
+*.log
+/tmp/

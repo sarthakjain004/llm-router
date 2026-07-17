@@ -1,0 +1,10 @@
+# Overlay used ONLY by scripts/failover_test.sh to prove real (not mocked)
+# failover. `environment:` takes precedence over `env_file:`, so this poisons
+# just the Gemini key — every gemini/* deployment then 401s and the router must
+# fall through to Groq.
+#
+#   docker compose -f docker-compose.yml -f compose.failover.yml up -d --force-recreate litellm
+services:
+  litellm:
+    environment:
+      GEMINI_API_KEY: sk-invalid-failover-test
