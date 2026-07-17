@@ -75,6 +75,24 @@ model_list:
     litellm_params: { model: cerebras/gpt-oss-120b, api_key: os.environ/CEREBRAS_API_KEY, rpm: 5, tpm: 30000 }        # VERIFY-AT-BUILD (alts: zai-glm-4.7, gemma-4-31b); hard 5 RPM — pre_call_checks matters here
     model_info: { supports_function_calling: true, max_input_tokens: 131072 }
 
+  # ─── Added free providers (all keys blank by default → deployments stay dormant ──
+  # until you fill the key in .env; the router skips a keyless provider). See ADR-0009.
+  - model_name: cloudflare-llama    # Cloudflare Workers AI — 10K neurons/day, no credit card
+    litellm_params: { model: cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast, api_key: os.environ/CLOUDFLARE_API_KEY, rpm: 5 }  # VERIFY-AT-BUILD: pick a function-calling-tagged CF model; ALSO needs CLOUDFLARE_ACCOUNT_ID in .env
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
+  - model_name: zai-glm             # Z.AI / Zhipu GLM — free flash tier, no credit card
+    litellm_params: { model: zai/glm-4.5-flash, api_key: os.environ/ZAI_API_KEY, rpm: 5 }                            # VERIFY-AT-BUILD (also glm-4.7-flash); free-tier RPM unpublished → conservative
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
+  - model_name: github-gpt4o-mini   # GitHub Models — 15 RPM / 150 req-day, no credit card, frontier models
+    litellm_params: { model: github/gpt-4o-mini, api_key: os.environ/GITHUB_API_KEY, rpm: 15 }                       # VERIFY-AT-BUILD (alts: o4-mini, gpt-5-mini, DeepSeek-R1)
+    model_info: { supports_function_calling: true, max_input_tokens: 128000 }
+
+  - model_name: cohere-command      # Cohere trial key — 20 RPM but only ~1000 req/MONTH → spillover only
+    litellm_params: { model: cohere_chat/command-a-03-2025, api_key: os.environ/COHERE_API_KEY, rpm: 10 }            # VERIFY-AT-BUILD
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
   # --- BEGIN GENERATED: openrouter-free (managed by scripts/refresh_models.py — DO NOT EDIT) ---
   # Populated by:  python3 scripts/refresh_models.py --write
   # All entries share model_name `openrouter-free` => one load-balanced group.
@@ -136,7 +154,8 @@ router_settings:
   # >>> The ONE place to reorder providers. To swap OpenRouter/NIM priority,
   # >>> swap the two names in the agent-default list.
   fallbacks:
-    - agent-default: [gemini-flash-lite, groq-llama70b, cerebras-gptoss, openrouter-free, nim-llama]
+    # Order = most free headroom first, finite reserve (NIM) last (ADR-0003 / ADR-0009).
+    - agent-default: [gemini-flash-lite, groq-llama70b, cerebras-gptoss, cloudflare-llama, zai-glm, github-gpt4o-mini, openrouter-free, cohere-command, nim-llama]
     - vision:        [groq-scout, nim-vision]
     - long-context:  [gemini-flash-lite, groq-scout, nim-llama]   # fallbacks cap at ~131K ctx — documented degradation
   # Deliberately NO default_fallbacks: pinned aliases must fail loudly, not

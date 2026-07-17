@@ -14,3 +14,4 @@ One decision per file; supersede rather than rewrite.
 | [0006](0006-generated-openrouter-block.md) | Generated `openrouter-free` block via the refresh script |
 | [0007](0007-security-master-key-private-network.md) | Security: master key + private-network binding |
 | [0008](0008-pin-explicit-image-tag.md) | Pin an explicit LiteLLM image tag (`v1.92.0`, arm64) |
+| [0009](0009-free-provider-admission-criteria.md) | Free-provider admission criteria (recurring-free, no-card, tool-calling, no forced training) |
