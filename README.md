@@ -278,6 +278,7 @@ scripts/failover_test.sh real failover proof
 examples/langgraph_client.py  LangChain/LangGraph integration
 CONTEXT.md               domain glossary (ubiquitous language)
 docs/adr/                architecture decision records
+docs/docker-explained.md from-scratch walkthrough of the Docker/compose setup
 .scratch/                local issue tracker (PRD + follow-up issues)
 ```
 
