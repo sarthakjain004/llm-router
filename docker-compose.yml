@@ -32,6 +32,27 @@ services:
       retries: 3
       start_period: 45s
 
+  # ─── Open WebUI — browser chat UI, pre-wired to the proxy (opt-in) ─────────
+  # Start:  docker compose --profile ui up -d      then open http://localhost:3000
+  # First visit creates a local admin account; the proxy's models (agent-default,
+  # vision, long-context, …) appear in the model dropdown automatically.
+  # Multi-arch (arm64), so it also runs on the Oracle box.
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: llm-router-ui
+    profiles: ["ui"]                       # only starts with `--profile ui`
+    restart: unless-stopped
+    depends_on:
+      - litellm
+    environment:
+      OPENAI_API_BASE_URL: http://litellm:4000/v1   # reach the proxy by its compose service name
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY}         # substituted from .env at launch
+      ENABLE_OLLAMA_API: "false"                    # this UI only talks to the proxy
+    ports:
+      - "${UI_BIND_ADDR:-127.0.0.1}:3000:8080"      # localhost only, like the proxy
+    volumes:
+      - open-webui:/app/backend/data                # persist accounts + chat history
+
   # ─── Ollama local fallback (SKIPPED for now) ───────────────────────────────
   # Uncomment to add a CPU-only last-resort tier. On the 12 GB Oracle box use a
   # small model only (qwen3:4b or llama3.2:3b). After first start:
@@ -46,5 +67,6 @@ services:
   #     - ollama-models:/root/.ollama
   #   # No ports published — only the litellm container needs to reach it.
 
-# volumes:
-#   ollama-models:
+volumes:
+  open-webui:           # Open WebUI accounts + chat history
+  # ollama-models:      # uncomment if you enable the ollama service above
