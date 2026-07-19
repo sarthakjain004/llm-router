@@ -4,13 +4,12 @@
 ARG LITELLM_TAG=v1.92.0
 FROM ghcr.io/berriai/litellm:${LITELLM_TAG}
 
-# OpenTelemetry deps for the "otel" callback. HTTP exporter only — no grpcio
-# (OpenLIT and most collectors accept OTLP/HTTP on :4318). Idempotent: a no-op
-# if the base tag already bundles these.
-RUN pip install --no-cache-dir \
-    opentelemetry-api \
-    opentelemetry-sdk \
-    opentelemetry-exporter-otlp-proto-http
+# NOTE: the OpenTelemetry deps the "otel" callback needs (opentelemetry-api/sdk +
+# the OTLP/HTTP exporter) are ALREADY bundled in this base image — verified:
+#   python3 -c "import opentelemetry.exporter.otlp.proto.http"   # succeeds
+# The image ships a uv-managed venv at /app/.venv with NO `pip`, so do not add a
+# `RUN pip install ...` here (it fails with "pip: not found"). If a future base
+# tag ever drops these, install with `RUN uv pip install <pkg>` instead.
 
 # Render-the-config entrypoint (handles the OTEL_ENABLED toggle).
 COPY docker/entrypoint.sh /usr/local/bin/llm-router-entrypoint.sh
