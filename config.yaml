@@ -56,7 +56,7 @@ model_list:
     model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 1048576 }
 
   - model_name: gemini-flash-lite
-    litellm_params: { model: gemini/gemini-2.5-flash-lite, api_key: os.environ/GEMINI_API_KEY, rpm: 15, tpm: 250000 } # VERIFY-AT-BUILD (lite TPM unconfirmed)
+    litellm_params: { model: gemini/gemini-3.1-flash-lite, api_key: os.environ/GEMINI_API_KEY, rpm: 15, tpm: 250000 } # 2.5-flash-lite 404s for new accounts ("no longer available to new users"); 3.1-flash-lite confirmed working. Alt: gemini-flash-lite-latest (auto-tracks current, avoids future deprecation 404s)
     model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
 
   - model_name: groq-llama70b
