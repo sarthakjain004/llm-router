@@ -10,13 +10,12 @@
 # Add a future tier (e.g. `smart` / `fast`): add one model_list entry + one
 # fallbacks line. Agent code never changes.
 #
-# Gemini free-tier quota is shared across every entry using the same key, and
-# LiteLLM counts rpm/tpm PER ENTRY. Google no longer publishes free-tier limits
-# for gemini-3.5-flash — read your real RPM/RPD/TPM from the AI Studio dashboard
-# (https://aistudio.google.com/rate-limit). The split below is a CONSERVATIVE
-# placeholder (~10 RPM / ~250K TPM assumed) so enable_pre_call_checks stays
-# truthful; re-balance once you see the dashboard numbers:
-#   agent-default 5rpm/120K  |  vision 2rpm/30K  |  long-context 2rpm/80K  |  gemini-flash 1rpm/20K
+# Gemini free-tier limits (AI Studio dashboard, 2026-07-20 — see docs/provider-limits.md).
+# All Flash models: 250K TPM, 1M context. The binding cap is RPD, which LiteLLM
+# pre-call checks CAN'T enforce (cooldowns handle the daily 429 instead):
+#   gemini-3.5-flash       5 RPM / 250K TPM / 20 RPD   (best quality, tiny daily cap)
+#   gemini-3.1-flash-lite  15 RPM / 250K TPM / 500 RPD (the workhorse; usually what agent-default serves)
+# rpm/tpm annotations below are kept conservative for enable_pre_call_checks.
 #
 # Every `# VERIFY-AT-BUILD` model id must be re-checked against the provider's
 # /models endpoint before first deploy — run: python3 scripts/refresh_models.py --check
