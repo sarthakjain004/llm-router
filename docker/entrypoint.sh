@@ -20,4 +20,7 @@ else
   echo "[entrypoint] OTel callback disabled (set OTEL_ENABLED=true to enable)"
 fi
 
+# Fan out numbered keys (GEMINI_API_KEY_2, _3, ...) into load-balanced deployments.
+python3 /usr/local/bin/llm-router-keyfanout.py "$RUNTIME" || echo "[entrypoint] keyfanout skipped"
+
 exec litellm --config "$RUNTIME" --host 0.0.0.0 --port 4000

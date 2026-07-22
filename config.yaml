@@ -10,12 +10,16 @@
 # Add a future tier (e.g. `smart` / `fast`): add one model_list entry + one
 # fallbacks line. Agent code never changes.
 #
-# Gemini free-tier limits (AI Studio dashboard, 2026-07-20 — see docs/provider-limits.md).
-# All Flash models: 250K TPM, 1M context. The binding cap is RPD, which LiteLLM
-# pre-call checks CAN'T enforce (cooldowns handle the daily 429 instead):
-#   gemini-3.5-flash       5 RPM / 250K TPM / 20 RPD   (best quality, tiny daily cap)
-#   gemini-3.1-flash-lite  15 RPM / 250K TPM / 500 RPD (the workhorse; usually what agent-default serves)
-# rpm/tpm annotations below are kept conservative for enable_pre_call_checks.
+# Gemini free-tier limits (AI Studio dashboard — see docs/provider-limits.md).
+# Premium aliases use gemini-flash-latest (auto-tracks the newest Flash; currently
+# gemini-3.6-flash) so new releases need no code change. All Flash: 250K TPM, 1M
+# context. Binding cap is RPD (pre-call checks can't enforce it — cooldowns handle
+# the daily 429):
+#   gemini-flash-latest (->3.6-flash)  ~5 RPM / 250K TPM / ~20 RPD  (premium, tiny daily cap)
+#   gemini-3.1-flash-lite              15 RPM / 250K TPM / 500 RPD  (workhorse; usually what agent-default serves)
+# Newer gemini-3.5-flash-lite also exists — check its dashboard RPD, switch the
+# workhorse to it if >=500. Add GEMINI_API_KEY_2/_3 to .env to auto load-balance
+# (docker/keyfanout.py) — LEGIT keys only; a farmed 2nd project gets denied (403).
 #
 # Every `# VERIFY-AT-BUILD` model id must be re-checked against the provider's
 # /models endpoint before first deploy — run: python3 scripts/refresh_models.py --check
@@ -25,7 +29,7 @@ model_list:
   # ─── Layer 1: semantic aliases (the stable contract your agents depend on) ──
   - model_name: agent-default
     litellm_params:
-      model: gemini/gemini-3.5-flash          # free since ~May 2026; free RPM/TPM are AI Studio dashboard-only, not published by Google
+      model: gemini/gemini-flash-latest          # free since ~May 2026; free RPM/TPM are AI Studio dashboard-only, not published by Google
       api_key: os.environ/GEMINI_API_KEY
       rpm: 5
       tpm: 120000
@@ -33,7 +37,7 @@ model_list:
 
   - model_name: vision
     litellm_params:
-      model: gemini/gemini-3.5-flash          # dashboard-only free limits
+      model: gemini/gemini-flash-latest          # dashboard-only free limits
       api_key: os.environ/GEMINI_API_KEY
       rpm: 2
       tpm: 30000
@@ -41,7 +45,7 @@ model_list:
 
   - model_name: long-context
     litellm_params:
-      model: gemini/gemini-3.5-flash          # dashboard-only free limits
+      model: gemini/gemini-flash-latest          # dashboard-only free limits
       api_key: os.environ/GEMINI_API_KEY
       rpm: 2
       tpm: 80000
@@ -51,7 +55,7 @@ model_list:
 
   # ─── Layer 2: provider-pinned deployments (debug/pin + fallback targets) ────
   - model_name: gemini-flash
-    litellm_params: { model: gemini/gemini-3.5-flash, api_key: os.environ/GEMINI_API_KEY, rpm: 1, tpm: 20000 }        # gemini-3.5-flash; dashboard-only free limits
+    litellm_params: { model: gemini/gemini-flash-latest, api_key: os.environ/GEMINI_API_KEY, rpm: 1, tpm: 20000 }        # gemini-3.5-flash; dashboard-only free limits
     model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 1048576 }
 
   - model_name: gemini-flash-lite

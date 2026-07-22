@@ -11,6 +11,14 @@ Format below: `RPM` = requests/min, `TPM` = tokens/min, `RPD` = requests/day.
 
 Only the text-generation models that matter for this proxy are listed.
 
+**New (2026-07-22):** `gemini-3.6-flash` and `gemini-3.5-flash-lite` are now on the
+key (41 models total). The config's premium aliases use **`gemini-flash-latest`**
+(auto-tracks the newest Flash → currently 3.6-flash), so future releases need no
+code change. The new models' exact RPD are dashboard-only — check
+[aistudio.google.com/rate-limit](https://aistudio.google.com/rate-limit); if
+`gemini-3.5-flash-lite`'s RPD is ≥ 500, switch the workhorse to it. Extra keys
+auto load-balance: add `GEMINI_API_KEY_2/_3` to `.env` (see `docker/keyfanout.py`).
+
 | Model | RPM | TPM | **RPD** | Context | Notes |
 |---|---|---|---|---|---|
 | **Gemini 3.1 Flash Lite** | 15 | 250K | **500** | 1M | ⭐ the real workhorse — 25× the daily volume of 3.5 Flash |
