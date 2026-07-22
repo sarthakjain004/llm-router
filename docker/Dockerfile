@@ -11,6 +11,7 @@ FROM ghcr.io/berriai/litellm:${LITELLM_TAG}
 # `RUN pip install ...` here (it fails with "pip: not found"). If a future base
 # tag ever drops these, install with `RUN uv pip install <pkg>` instead.
 
-# Render-the-config entrypoint (handles the OTEL_ENABLED toggle).
+# Config-rendering entrypoint (OTEL toggle) + numbered-key fan-out helper.
+COPY docker/keyfanout.py /usr/local/bin/llm-router-keyfanout.py
 COPY docker/entrypoint.sh /usr/local/bin/llm-router-entrypoint.sh
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/llm-router-entrypoint.sh"]
