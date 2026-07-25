@@ -96,6 +96,10 @@ model_list:
     litellm_params: { model: cohere_chat/command-a-03-2025, api_key: os.environ/COHERE_API_KEY, rpm: 10 }            # VERIFY-AT-BUILD
     model_info: { supports_function_calling: true, max_input_tokens: 131072 }
 
+  - model_name: ollama-cloud        # Ollama Cloud — free tier (email, no card); GPU-time quota resets ~5h/weekly, 1 concurrent
+    litellm_params: { model: openai/gpt-oss:120b, api_key: os.environ/OLLAMA_CLOUD_API_KEY, api_base: https://ollama.com/v1, rpm: 5 }  # VERIFY-AT-BUILD (verified 2026-07-25: ollama.com/v1 — api.ollama.com 301-redirects & breaks POST; gpt-oss:120b/:20b work free; deepseek-v4-flash & kimi-k2.6 are 403 subscription-only); OpenAI-compat per ADR-0009 crit.3; doesn't train (crit.5)
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
   # --- BEGIN GENERATED: openrouter-free (managed by scripts/refresh_models.py — DO NOT EDIT) ---
   # Populated by:  python3 scripts/refresh_models.py --write
   # All entries share model_name `openrouter-free` => one load-balanced group.
@@ -158,7 +162,7 @@ router_settings:
   # >>> swap the two names in the agent-default list.
   fallbacks:
     # Order = most free headroom first, finite reserve (NIM) last (ADR-0003 / ADR-0009).
-    - agent-default: [gemini-flash-lite, groq-llama70b, cerebras-gptoss, cloudflare-llama, zai-glm, github-gpt4o-mini, openrouter-free, cohere-command, nim-llama]
+    - agent-default: [gemini-flash-lite, groq-llama70b, cerebras-gptoss, cloudflare-llama, zai-glm, github-gpt4o-mini, openrouter-free, cohere-command, ollama-cloud, nim-llama]
     - vision:        [groq-scout, nim-vision]
     - long-context:  [gemini-flash-lite, groq-scout, nim-llama]   # fallbacks cap at ~131K ctx — documented degradation
   # Deliberately NO default_fallbacks: pinned aliases must fail loudly, not
