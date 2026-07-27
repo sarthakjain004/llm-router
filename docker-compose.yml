@@ -30,7 +30,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 45s
+      # 180s (not 45s): on a RAM-constrained box (e.g. the 1 GB Oracle E2.1.Micro)
+      # litellm cold-boot swaps heavily and can take ~90s+ to bind :4000. A short
+      # start_period flags the container "unhealthy" mid-boot (it self-heals once
+      # up, but the flap is noisy). See learnings.md.
+      start_period: 180s
 
   # ─── Open WebUI — browser chat UI, pre-wired to the proxy (opt-in) ─────────
   # Start:  docker compose --profile ui up -d      then open http://localhost:3000
