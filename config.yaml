@@ -54,7 +54,39 @@ model_list:
     # tokens despite Gemini's 1M window. Documented in README.
     model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
 
+  # `fast` and `smart` (2026-11-14): measured on a 1.9K-token résumé-edit prompt, direct to each
+  # provider. fast = Groq gpt-oss-20b, 1.1-1.3 s; smart = Gemini 3.6 Flash at low reasoning,
+  # ~18 s and the cleanest edits (default reasoning ran past the 30 s timeout). Each has its own
+  # short timeout because free-tier Gemini sometimes hangs 60-90 s with no answer: a hang must
+  # cost one short wait and then a different provider, never a retry of the same one.
+  - model_name: fast
+    litellm_params:
+      model: groq/openai/gpt-oss-20b
+      api_key: os.environ/GROQ_API_KEY
+      reasoning_effort: low
+      timeout: 12
+      rpm: 30
+      tpm: 8000
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
+  - model_name: smart
+    litellm_params:
+      model: gemini/gemini-3.6-flash
+      api_key: os.environ/GEMINI_API_KEY
+      reasoning_effort: low
+      timeout: 28
+      rpm: 5
+    model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
+
   # ─── Layer 2: provider-pinned deployments (debug/pin + fallback targets) ────
+  - model_name: gemini-flash-lite-35
+    litellm_params: { model: gemini/gemini-3.5-flash-lite, api_key: os.environ/GEMINI_API_KEY, timeout: 12 }
+    model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
+
+  - model_name: gemini-flash-35-low
+    litellm_params: { model: gemini/gemini-3.5-flash, api_key: os.environ/GEMINI_API_KEY, reasoning_effort: low, timeout: 28 }
+    model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
+
   - model_name: gemini-flash
     litellm_params: { model: gemini/gemini-3.6-flash, api_key: os.environ/GEMINI_API_KEY, rpm: 1, tpm: 20000 }        # gemini-3.5-flash; dashboard-only free limits
     model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 1048576 }
@@ -64,11 +96,11 @@ model_list:
     model_info: { supports_function_calling: true, max_input_tokens: 1048576 }
 
   - model_name: groq-llama70b
-    litellm_params: { model: groq/llama-3.3-70b-versatile, api_key: os.environ/GROQ_API_KEY, rpm: 30, tpm: 12000 }    # VERIFY-AT-BUILD; real ceiling is 100K TPD (no LiteLLM knob — cooldowns absorb it)
+    litellm_params: { model: groq/openai/gpt-oss-120b, api_key: os.environ/GROQ_API_KEY, reasoning_effort: low, rpm: 30, tpm: 8000 }    # name kept for callers; Groq retired llama-3.3-70b (404 on 2026-11-14). 1K RPD / 8K TPM from headers
     model_info: { supports_function_calling: true, max_input_tokens: 131072 }
 
   - model_name: groq-fast
-    litellm_params: { model: groq/llama-3.1-8b-instant, api_key: os.environ/GROQ_API_KEY, rpm: 30, tpm: 6000 }        # VERIFY-AT-BUILD (14.4K RPD / 500K TPD)
+    litellm_params: { model: groq/openai/gpt-oss-20b, api_key: os.environ/GROQ_API_KEY, reasoning_effort: low, rpm: 30, tpm: 8000 }        # name kept for callers; Groq retired llama-3.1-8b. 1K RPD / 8K TPM from headers
     model_info: { supports_function_calling: true, max_input_tokens: 131072 }
 
   - model_name: groq-scout            # multimodal — fallback for `vision`
@@ -159,9 +191,14 @@ router_settings:
   # >>> swap the two names in the agent-default list.
   fallbacks:
     # Order = most free headroom first, finite reserve (NIM) last (ADR-0003 / ADR-0009).
-    - agent-default: [gemini-flash-lite, groq-llama70b, cerebras-gptoss, cloudflare-llama, zai-glm, github-gpt4o-mini, openrouter-free, cohere-command, nim-llama]
+    # 2026-11-14: only providers that answered that day. Removed until repaired: cerebras-gptoss
+    # (402 billing), zai-glm / github-gpt4o-mini / cohere-command (no key),
+    # nim-llama (410, model retired). openrouter-free stays last: its free models took 45-60 s.
+    - agent-default: [gemini-flash-lite, groq-llama70b, cloudflare-llama, openrouter-free]
+    - fast:          [gemini-flash-lite-35, gemini-flash-lite, groq-llama70b, cloudflare-llama]
+    - smart:         [gemini-flash-35-low, groq-llama70b, gemini-flash-lite-35, gemini-flash-lite, cloudflare-llama]
     - vision:        [groq-scout, nim-vision]
-    - long-context:  [gemini-flash-lite, groq-scout, nim-llama]   # fallbacks cap at ~131K ctx — documented degradation
+    - long-context:  [gemini-flash-lite]   # groq-scout and nim-llama name retired models (2026-11-14); fallbacks cap at ~131K ctx — documented degradation
   # Deliberately NO default_fallbacks: pinned aliases must fail loudly, not
   # silently switch providers (loud failure is the whole point of pinning).
 
@@ -172,7 +209,7 @@ router_settings:
 
   retry_policy:
     RateLimitErrorRetries: 0        # a free-tier 429 won't clear in seconds — go straight to the next provider
-    TimeoutErrorRetries: 1
+    TimeoutErrorRetries: 0          # a hung free-tier call hangs again; go to the next provider (measured 2026-11-14)
     InternalServerErrorRetries: 1
     ContentPolicyViolationErrorRetries: 0
   allowed_fails_policy:

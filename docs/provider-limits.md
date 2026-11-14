@@ -3,9 +3,45 @@
 These are the **actual** limits observed for this deployment's keys, not the
 marketing/doc numbers. They are **account-specific and drift** — re-check
 periodically (Gemini: [aistudio.google.com/rate-limit](https://aistudio.google.com/rate-limit);
-Groq: response headers). Last checked **2026-07-20**.
+Groq: response headers). Last checked **2026-07-20**; latency and availability re-measured **2026-11-14** (next section).
 
 Format below: `RPM` = requests/min, `TPM` = tokens/min, `RPD` = requests/day.
+
+## Measured 2026-11-14 (one 1.9K-token prompt, two runs each, direct to each provider)
+
+Evidence from one prompt on one afternoon, not a benchmark. The prompt asked for JSON edits to a
+résumé (about 1,900 tokens in, 400 to 1,100 out).
+
+| Model | Time | Result |
+|---|---|---|
+| Groq `openai/gpt-oss-20b`, low reasoning | 1.1 to 1.3 s | valid JSON; serves the `fast` alias |
+| Gemini `gemini-3.5-flash-lite` | 1.9 s | valid JSON |
+| Gemini `gemini-3.1-flash-lite` | 2.2 to 2.4 s | valid JSON |
+| Groq `openai/gpt-oss-120b`, low reasoning | 2.5 to 2.9 s | valid JSON |
+| Groq `qwen/qwen3.8-27b` | 2.2 s, then 429 | output-token limit hit on the second call |
+| Cloudflare `llama-3.3-70b-instruct-fp8-fast` | 9.4 s | valid JSON |
+| Cloudflare `gpt-oss-120b` | 9 to 18 s | valid JSON |
+| Gemini `gemini-3.5-flash`, low reasoning | 16 to 17 s | valid JSON |
+| Gemini `gemini-3.6-flash`, low reasoning | 18 s | valid JSON; serves the `smart` alias |
+| Gemini `gemini-3.6-flash`, default reasoning | over 30 s | ran past the router timeout twice |
+| Gemini `gemini-3.7-flash`, `gemini-3.8-flash` | no answer in 60 s | both runs timed out |
+| Gemini `gemini-2.5-flash`, `gemini-2.5-flash-lite` | 404 | retired for new users |
+| OpenRouter `:free` models | 45 to 480 s | reasoning models that mostly hit the token ceiling |
+| Cerebras (both models) | 402 | still gated behind billing |
+| Ollama Cloud | 402 | asks for credits |
+| NVIDIA NIM `llama-3.3-70b-instruct` | 410 | model retired 2026-08-26 |
+| Z.AI, GitHub Models, Cohere | error | no key set; the router errors on them rather than skipping (Cohere after 17 s) |
+
+**Free-tier Gemini stalls on its own.** Ten short calls sent straight to `gemini-3.1-flash-lite`
+(no router): seven answered in about 1 s, one took 11.6 s, one returned 503 "high demand" after
+57 s, and one gave no answer in 90 s. Connects to Google took 10 to 30 ms throughout and the
+router's own overhead was under 3 ms, so the stalls are the provider's. That is why a timed-out
+call is no longer retried on the same provider (`TimeoutErrorRetries: 0`) and why `fast` and
+`smart` carry their own short timeouts.
+
+**Groq (from response headers):** 1,000 requests a day and 8,000 tokens a minute for each of
+`gpt-oss-20b`, `gpt-oss-120b` and `qwen3.8-27b`. The Llama models the Groq section below lists
+are gone from the key (404).
 
 ## Google Gemini (AI Studio free tier — from the user's dashboard, 2026-07-20)
 
