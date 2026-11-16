@@ -77,6 +77,12 @@ Gemini 3.5 Flash is capped at **20 requests/day**, while **3.1 Flash Lite gives
 | `llama-3.3-70b-versatile` (groq-llama70b) | 30 | 12K | 1,000 | ~100K | 131K |
 | `llama-3.1-8b-instant` (groq-fast) | 30 | 6K | 14,400 | ~500K | 131K |
 
+Measured from response headers on 2026-11-16 (the two Llama ids above are retired; the names
+now point at gpt-oss): `openai/gpt-oss-120b` (groq-llama70b), `openai/gpt-oss-20b` (groq-fast,
+`fast`) and `qwen/qwen3.8-27b` (groq-qwen) each allow 1,000 requests a day and 8,000 tokens a
+minute, counted per model. Two callers sharing one model trip the per-minute limit long
+before the daily one: a 3-4K-token prompt fits twice a minute.
+
 RPM/TPM/RPD are live-verified; TPD is from Groq's docs. For RAG, **the 70B's ~100K
 TPD is the real ceiling** (a ~7K-token RAG call ≈ only ~14 big queries/day).
 

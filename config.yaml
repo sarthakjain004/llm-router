@@ -11,12 +11,11 @@
 # fallbacks line. Agent code never changes.
 #
 # Gemini free-tier limits (AI Studio dashboard — see docs/provider-limits.md).
-# Premium aliases are PINNED to gemini-3.6-flash. They used gemini-flash-latest
-# until 2026-11-07, when the alias moved to a newer release (3.7/3.8) that hung
-# 40-90s+ even on direct API calls. Re-test a newer Flash directly before
-# re-pointing. All Flash: 250K TPM, 1M context. Binding cap is RPD (pre-call
-# checks can't enforce it — cooldowns handle the daily 429):
-#   gemini-3.6-flash                   ~5 RPM / 250K TPM / ~20 RPD  (premium, tiny daily cap)
+# Premium aliases use gemini-flash-latest (auto-tracks the newest Flash; currently
+# gemini-3.6-flash) so new releases need no code change. All Flash: 250K TPM, 1M
+# context. Binding cap is RPD (pre-call checks can't enforce it — cooldowns handle
+# the daily 429):
+#   gemini-flash-latest (->3.6-flash)  ~5 RPM / 250K TPM / ~20 RPD  (premium, tiny daily cap)
 #   gemini-3.1-flash-lite              15 RPM / 250K TPM / 500 RPD  (workhorse; usually what agent-default serves)
 # Newer gemini-3.5-flash-lite also exists — check its dashboard RPD, switch the
 # workhorse to it if >=500. Add GEMINI_API_KEY_2/_3 to .env to auto load-balance
@@ -103,9 +102,10 @@ model_list:
     litellm_params: { model: groq/openai/gpt-oss-20b, api_key: os.environ/GROQ_API_KEY, reasoning_effort: low, rpm: 30, tpm: 8000 }        # name kept for callers; Groq retired llama-3.1-8b. 1K RPD / 8K TPM from headers
     model_info: { supports_function_calling: true, max_input_tokens: 131072 }
 
-  - model_name: groq-scout            # multimodal — fallback for `vision`
-    litellm_params: { model: groq/meta-llama/llama-4-scout-17b-16e-instruct, api_key: os.environ/GROQ_API_KEY, rpm: 30, tpm: 30000 }  # VERIFY-AT-BUILD
-    model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 131072 }
+  - model_name: groq-qwen             # a third Groq model with limits of its own (1K RPD / 8K TPM from headers, 2026-11-16); 0.2-0.4 s on a small JSON ask
+    litellm_params: { model: groq/qwen/qwen3.8-27b, api_key: os.environ/GROQ_API_KEY, rpm: 30, tpm: 8000 }
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+  # groq-scout (llama-4-scout) is gone: Groq lists no vision model as of 2026-11-16.
 
   - model_name: cerebras-gptoss
     litellm_params: { model: cerebras/gpt-oss-120b, api_key: os.environ/CEREBRAS_API_KEY, rpm: 5, tpm: 30000 }        # VERIFY-AT-BUILD (alts: zai-glm-4.7, gemma-4-31b); hard 5 RPM — pre_call_checks matters here
@@ -129,16 +129,14 @@ model_list:
     litellm_params: { model: cohere_chat/command-a-03-2025, api_key: os.environ/COHERE_API_KEY, rpm: 10 }            # VERIFY-AT-BUILD
     model_info: { supports_function_calling: true, max_input_tokens: 131072 }
 
+  - model_name: ollama-cloud        # Ollama Cloud — free tier (email, no card); GPU-time quota resets ~5h/weekly, 1 concurrent
+    litellm_params: { model: openai/gpt-oss:120b, api_key: os.environ/OLLAMA_CLOUD_API_KEY, api_base: https://ollama.com/v1, rpm: 5 }  # VERIFY-AT-BUILD (verified 2026-07-25: ollama.com/v1 — api.ollama.com 301-redirects & breaks POST; gpt-oss:120b/:20b work free; deepseek-v4-flash & kimi-k2.6 are 403 subscription-only); OpenAI-compat per ADR-0009 crit.3; doesn't train (crit.5)
+    model_info: { supports_function_calling: true, max_input_tokens: 131072 }
+
   # --- BEGIN GENERATED: openrouter-free (managed by scripts/refresh_models.py — DO NOT EDIT) ---
   # Populated by:  python3 scripts/refresh_models.py --write
   # All entries share model_name `openrouter-free` => one load-balanced group.
   # Account cap is 20 RPM / 50 requests-per-day, split as rpm across <=4 entries.
-  - model_name: openrouter-free
-    litellm_params:
-      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
-      api_key: os.environ/OPENROUTER_API_KEY
-      rpm: 5
-    model_info: { supports_function_calling: true, max_input_tokens: 1000000 }
   - model_name: openrouter-free
     litellm_params:
       model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
@@ -147,10 +145,16 @@ model_list:
     model_info: { supports_function_calling: true, max_input_tokens: 1000000 }
   - model_name: openrouter-free
     litellm_params:
-      model: openrouter/nvidia/nemotron-3-nano-30b-a3b:free
+      model: openrouter/nvidia/nemotron-3.5-lightning:free
       api_key: os.environ/OPENROUTER_API_KEY
       rpm: 5
-    model_info: { supports_function_calling: true, max_input_tokens: 256000 }
+    model_info: { supports_function_calling: true, max_input_tokens: 1000000 }
+  - model_name: openrouter-free
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3.5-super-vl:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      rpm: 5
+    model_info: { supports_function_calling: true, max_input_tokens: 1000000 }
   - model_name: openrouter-free
     litellm_params:
       model: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
@@ -160,11 +164,11 @@ model_list:
   # --- END GENERATED: openrouter-free ---
 
   - model_name: nim-llama             # LAST-RESORT RESERVE: finite ~1000-credit pool, kept last on purpose
-    litellm_params: { model: nvidia_nim/meta/llama-3.3-70b-instruct, api_key: os.environ/NVIDIA_NIM_API_KEY, rpm: 30 }             # VERIFY-AT-BUILD
+    litellm_params: { model: nvidia_nim/openai/gpt-oss-20b, api_key: os.environ/NVIDIA_NIM_API_KEY, rpm: 30 }             # id from NIM's public list 2026-11-16 (llama-3.3-70b: 410 Gone). UNVERIFIED: the box's NIM key is refused (401), so nim-* stay out of every chain
     model_info: { supports_function_calling: true, max_input_tokens: 131072 }
 
   - model_name: nim-vision
-    litellm_params: { model: nvidia_nim/meta/llama-4-scout-17b-16e-instruct, api_key: os.environ/NVIDIA_NIM_API_KEY, rpm: 10 }     # VERIFY-AT-BUILD
+    litellm_params: { model: nvidia_nim/meta/llama-3.2-90b-vision-instruct, api_key: os.environ/NVIDIA_NIM_API_KEY, rpm: 10 }     # id from NIM's public list 2026-11-16 (llama-4-scout: 404). UNVERIFIED, as above
     model_info: { supports_function_calling: true, supports_vision: true, max_input_tokens: 131072 }
 
   # ─── Ollama local fallback (SKIPPED for now) ────────────────────────────────
@@ -185,20 +189,22 @@ router_settings:
   retry_after: 5
   allowed_fails: 2
   cooldown_time: 60          # matches per-minute rate windows; raise to 300 if logs show daily-cap (RPD/TPD) hammering
-  timeout: 30               # a hung provider falls back in seconds, not minutes
+  timeout: 30
 
   # >>> The ONE place to reorder providers. To swap OpenRouter/NIM priority,
   # >>> swap the two names in the agent-default list.
   fallbacks:
     # Order = most free headroom first, finite reserve (NIM) last (ADR-0003 / ADR-0009).
     # 2026-11-14: only providers that answered that day. Removed until repaired: cerebras-gptoss
-    # (402 billing), zai-glm / github-gpt4o-mini / cohere-command (no key),
-    # nim-llama (410, model retired). openrouter-free stays last: its free models took 45-60 s.
-    - agent-default: [gemini-flash-lite, groq-llama70b, cloudflare-llama, openrouter-free]
-    - fast:          [gemini-flash-lite-35, gemini-flash-lite, groq-llama70b, cloudflare-llama]
-    - smart:         [gemini-flash-35-low, groq-llama70b, gemini-flash-lite-35, gemini-flash-lite, cloudflare-llama]
-    - vision:        [groq-scout, nim-vision]
-    - long-context:  [gemini-flash-lite]   # groq-scout and nim-llama name retired models (2026-11-14); fallbacks cap at ~131K ctx — documented degradation
+    # (402 billing), zai-glm / github-gpt4o-mini / cohere-command (no key), ollama-cloud (402),
+    # nim-llama / nim-vision (401, the box's NIM key is refused). openrouter-free stays last: its
+    # free models took 45-60 s. 2026-11-16: groq-qwen added; it has per-model limits of its own,
+    # so `fast` keeps a Groq answer when gpt-oss-20b's 8K tokens a minute are spent.
+    - agent-default: [gemini-flash-lite, groq-llama70b, groq-qwen, cloudflare-llama, openrouter-free]
+    - fast:          [groq-qwen, gemini-flash-lite-35, gemini-flash-lite, groq-llama70b, cloudflare-llama]
+    - smart:         [gemini-flash-35-low, groq-llama70b, gemini-flash-lite-35, groq-qwen, gemini-flash-lite, cloudflare-llama]
+    - vision:        [openrouter-free]     # no working vision provider but OpenRouter's free pool (nim-vision: key refused; Groq serves none)
+    - long-context:  [gemini-flash-lite]   # fallbacks cap at ~131K ctx — documented degradation
   # Deliberately NO default_fallbacks: pinned aliases must fail loudly, not
   # silently switch providers (loud failure is the whole point of pinning).
 
@@ -217,7 +223,7 @@ router_settings:
 
 litellm_settings:
   drop_params: true                 # heterogeneous free providers reject unknown params otherwise
-  request_timeout: 30               # the 6000s default would pin a worker on a hung stream
+  request_timeout: 30              # the 6000s default would pin a worker on a hung stream
   json_logs: true
   # __OTEL__ callbacks: ["otel"]    # uncommented at boot by docker/entrypoint.sh when OTEL_ENABLED=true
 
